@@ -6,11 +6,16 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace Alturos.Yolo.TestUI
-{
+{    
+    public class GpuConfig
+    {
+        public int GpuIndex { get; set; }
+    }
     public partial class Main : Form
     {
         private YoloWrapper _yoloWrapper;
@@ -156,6 +161,55 @@ namespace Alturos.Yolo.TestUI
             this.buttonStartTracking.Enabled = true;
         }
 
+        public class YoloConfigurationDetector
+        {
+            /// <summary>
+            /// Automatict detect the yolo configuration on the given path
+            /// </summary>
+            /// <param name="path"></param>
+            /// <returns></returns>
+            /// <exception cref="FileNotFoundException">Thrown when cannot found one of the required yolo files</exception>
+            public YoloConfiguration Detect(string path = ".")
+            {
+                var files = this.GetYoloFiles(path);
+                var yoloConfiguration = this.MapFiles(files);
+                var configValid = this.AreValidYoloFiles(yoloConfiguration);
+
+                if (configValid)
+                {
+                    return yoloConfiguration;
+                }
+
+                throw new FileNotFoundException("Cannot found pre-trained model, check all config files available (.cfg, .weights, .names)");
+            }
+
+            private string[] GetYoloFiles(string path)
+            {
+                return Directory.GetFiles(path, "*.*", SearchOption.TopDirectoryOnly).Where(o => o.EndsWith(".names") || o.EndsWith(".cfg") || o.EndsWith(".weights")).ToArray();
+            }
+
+            private YoloConfiguration MapFiles(string[] files)
+            {
+                var configurationFile = files.FirstOrDefault(o => o.EndsWith(".cfg"));
+                var weightsFile = files.FirstOrDefault(o => o.EndsWith(".weights"));
+                var namesFile = files.FirstOrDefault(o => o.EndsWith(".names"));
+
+                return new YoloConfiguration(configurationFile, weightsFile, namesFile);
+            }
+
+            private bool AreValidYoloFiles(YoloConfiguration config)
+            {
+                if (string.IsNullOrEmpty(config.ConfigFile) ||
+                    string.IsNullOrEmpty(config.WeightsFile) ||
+                    string.IsNullOrEmpty(config.NamesFile))
+                {
+                    return false;
+                }
+
+                return true;
+            }
+        }
+
         private void DrawBoundingBoxes(IEnumerable<YoloTrackingItem> items)
         {
             var imageInfo = this.GetCurrentImage();
@@ -247,6 +301,24 @@ namespace Alturos.Yolo.TestUI
             return Brushes.DarkRed;
         }
 
+        public string GetGraphicDeviceName(GpuConfig gpuConfig)
+        {
+            if (gpuConfig == null)
+            {
+                return string.Empty;
+            }
+
+            //var systemReport = this._yoloSystemValidator.Validate();
+            //if (!systemReport.CudaExists || !systemReport.CudnnExists)
+            //{
+                return "unknown";
+            //}
+
+            //var deviceName = new StringBuilder(); //allocate memory for string
+            //GetDeviceName(gpuConfig.GpuIndex, deviceName);
+            return "";
+        }
+
         private void Initialize(string path)
         {
             var configurationDetector = new YoloConfigurationDetector();
@@ -287,13 +359,13 @@ namespace Alturos.Yolo.TestUI
 
                 var sw = new Stopwatch();
                 sw.Start();
-                this._yoloWrapper = new YoloWrapper(config.ConfigFile, config.WeightsFile, config.NamesFile, gpuConfig);
+                this._yoloWrapper = new YoloWrapper(config.ConfigFile, config.WeightsFile, config.NamesFile, 0);
                 sw.Stop();
 
                 var action = new MethodInvoker(delegate ()
                 {
-                    var deviceName = this._yoloWrapper.GetGraphicDeviceName(gpuConfig);
-                    this.toolStripStatusLabelYoloInfo.Text = $"Initialize Yolo in {sw.Elapsed.TotalMilliseconds:0} ms - Detection System:{this._yoloWrapper.DetectionSystem} {deviceName} Weights:{config.WeightsFile}";
+                    //var deviceName = this._yoloWrapper.GetGraphicDeviceName(gpuConfig);
+                    this.toolStripStatusLabelYoloInfo.Text = $"Initialize Yolo in {sw.Elapsed.TotalMilliseconds:0} ms - Detection System:{this._yoloWrapper.DetectionSystem} {""} Weights:{config.WeightsFile}";
                 });
 
                 this.statusStrip1.Invoke(action);
